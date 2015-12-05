@@ -9,7 +9,8 @@ the `units` place.
 
 ## Usage
 ```sh
-$ ./json_tree.rb <path_to_json>
+$ gem install json-schema-reader
+$ jsontree path/to/file.json
 ```
 
 ## Example
