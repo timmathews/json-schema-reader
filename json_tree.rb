@@ -12,89 +12,136 @@ class Hash
 end
 
 class Schema
-  attr_accessor :data, :uri, :path
+  attr_accessor :data, :uri
 
-  def initialize path
-    @data = JSON.parse File.read path
-    @uri = Pathname.new(path).realdirpath
-    @path = @uri.dirname
+  def initialize data, uri
+    #puts "initialize from #{uri}"
+    @data = JSON.parse data
+    @uri = uri
+    @data = expand @data
+  end
+
+  def self.load_from_file path
+    Schema.new File.read(path), Pathname.new(path).realdirpath
+  end
+
+  def path
+    @uri.dirname
   end
 
   def title
     @data.title
   end
-end
 
-@base_schema = Schema.new ARGV[0]
-
-puts @base_schema.title
-
-def print_line schema, line, indent = ''
-  if line['$ref']
-    ref = expand_ref schema, line['$ref']
-    line.merge! ref
+  def pretty_generate
+    puts @data.title
+    print_line @data
   end
 
-  line.properties.each_with_index do |(prop_k, prop_v), idx|
+  private
 
-    i = indent
-
-    if idx + 1 == line.properties.count
-      c = "\u2514"
-      s = "  "
+  def print_line line, indent = ''
+    if line.properties && line.patternProperties
+      pp = line.properties.merge line.patternProperties
     else
-      c = "\u251C"
-      s = "\u2502 "
+      pp = line.properties || line.patternProperties
     end
 
-    print i + c
+    pp.each_with_index do |(prop_k, prop_v), idx|
+      i = indent
 
-    if (prop_v.required == true) || (line.required && (line.required.include? prop_k))
-      print '!'
-    end
+      if idx + 1 == pp.count
+        c = "\u2514"
+        s = "  "
+      else
+        c = "\u251C"
+        s = "\u2502 "
+      end
 
-    print prop_k
+      print i + c
 
-    if prop_v.type
-      print ':' + prop_v.type
-    end
+      if (prop_v.required == true) || (line.required && line.required.is_a?(Array) && line.required.include?(prop_k))
+        print '!'
+      end
 
-    if prop_v.units
-      print ':' + prop_v.units
-    end
+      print prop_k
 
-    print "\n"
+      if prop_v.type
+        print ':' + prop_v.type
+      end
 
-    print_line schema, prop_v, indent + s
-  end unless line.properties.nil?
-end
+      if prop_v.units
+        print ':' + prop_v.units
+      end
 
-def expand_ref schema, ref
-  if ref[0] == '#'
-    path = ref.gsub(/[\/#]/, '.')
-    data = JsonPath.new(path).first schema.data
-  else
-    uri = (schema.path + Pathname.new(ref)).to_s
-    tok = uri.split '#'
-    schema = Schema.new tok[0]
-    if tok[1]
-      path = tok[1].gsub(/\//, '.')
-      data = JsonPath.new(path).first schema.data
-    else
-      data = schema.data
-    end
+      print "\n"
+
+      print_line prop_v, indent + s
+    end unless pp.nil?
   end
 
-  if data && data.properties
-    data.properties.each do |k,v|
-      if v['$ref']
-        r = expand_ref schema, v['$ref']
-        k = v.merge! r
+  def expand data
+    if data.definitions
+      data.definitions.each do |k, v|
+        #puts "expand de #{k}"
+        if v['$ref']
+          v.merge! expand_ref v['$ref']
+          v.delete '$ref'
+        end
+        v = expand v
+        data.definitions[k] = v
       end
     end
+    if data.properties
+      data.properties.each do |k, v|
+        #puts "expand pr #{k}"
+        if v['$ref']
+          v.merge! expand_ref v['$ref']
+          v.delete '$ref'
+        end
+        v = expand v
+        data.properties[k] = v
+      end
+    end
+    if data.patternProperties
+      data.patternProperties.each do |k, v|
+        #puts "expand pp #{k}"
+        if v['$ref']
+          v.merge! expand_ref v['$ref']
+          v.delete '$ref'
+        end
+        v = expand v
+        data.patternProperties[k] = v
+      end
+    end
+
+    data
   end
 
-  data || {}
+  def expand_ref ref
+#    puts "expand_ref"
+    if ref[0] == '#' # refers to current schema
+      path = ref.gsub(/[\/#]/, '.')
+      data = JsonPath.new(path).first @data
+    else
+      uri = (self.path + Pathname.new(ref)).to_s
+      tok = uri.split '#'
+      t_schema = Schema.load_from_file tok[0]
+
+      if tok[1]
+        path = tok[1].gsub(/\//, '.')
+        data = JsonPath.new(path).first t_schema.data
+      else
+        data = t_schema.data
+      end
+    end
+
+    data || {}
+  end
 end
 
-print_line @base_schema, @base_schema.data
+@base_schema = Schema.load_from_file ARGV[0]
+
+@base_schema.pretty_generate
+
+#puts JSON.pretty_generate @base_schema.data
