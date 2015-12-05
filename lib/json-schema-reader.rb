@@ -1,5 +1,3 @@
-#!/usr/bin/env ruby
-
 require 'json'
 require 'jsonpath'
 require 'pathname'
@@ -15,7 +13,6 @@ class Schema
   attr_accessor :data, :uri
 
   def initialize data, uri
-    #puts "initialize from #{uri}"
     @data = JSON.parse data
     @uri = uri
     @data = expand @data
@@ -83,7 +80,6 @@ class Schema
   def expand data
     if data.definitions
       data.definitions.each do |k, v|
-        #puts "expand de #{k}"
         if v['$ref']
           v.merge! expand_ref v['$ref']
           v.delete '$ref'
@@ -94,7 +90,6 @@ class Schema
     end
     if data.properties
       data.properties.each do |k, v|
-        #puts "expand pr #{k}"
         if v['$ref']
           v.merge! expand_ref v['$ref']
           v.delete '$ref'
@@ -105,7 +100,6 @@ class Schema
     end
     if data.patternProperties
       data.patternProperties.each do |k, v|
-        #puts "expand pp #{k}"
         if v['$ref']
           v.merge! expand_ref v['$ref']
           v.delete '$ref'
@@ -119,7 +113,6 @@ class Schema
   end
 
   def expand_ref ref
-#    puts "expand_ref"
     if ref[0] == '#' # refers to current schema
       path = ref.gsub(/[\/#]/, '.')
       data = JsonPath.new(path).first @data
@@ -139,9 +132,3 @@ class Schema
     data || {}
   end
 end
-
-@base_schema = Schema.load_from_file ARGV[0]
-
-@base_schema.pretty_generate
-
-#puts JSON.pretty_generate @base_schema.data

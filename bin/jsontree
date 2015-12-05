@@ -1,0 +1,12 @@
+#!/usr/bin/env ruby
+
+require 'json-schema-reader'
+
+if ARGV.count == 0
+  puts "jsontree prints a tree view of a JSON schema file\n\n"
+  puts "  Usage:\n    jsontree path/to/file.json\n\n"
+  exit 1
+end
+
+schema = Schema.load_from_file ARGV[0]
+schema.pretty_generate
